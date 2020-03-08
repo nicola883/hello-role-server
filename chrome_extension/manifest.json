@@ -1,0 +1,36 @@
+{
+  "manifest_version": 2,
+ 
+  "name": "Roles",
+  "version": "0.1.0",
+  "description": "Add semantic role to pages and evaluate the results",
+ 
+  "content_scripts": [{
+    "css": ["styles.css"],
+    "js": ["content.js", "lib/jquery-min.js", "build-ground-truth.js", "popup.js"],
+    "matches": ["https://*/*", "http://*/*", "http://localhost/segmenters/", "https://www.nih.gov/*", "https://blog.lateral.io/*", "http://elginakpinar.com/*"]
+  }],
+
+  "permissions": [
+    "http://localhost:8081/", "activeTab"
+  ],
+  
+  "background": { "scripts": ["hot-reload.js", "background.js"], "persistent": false },
+  
+	"web_accessible_resources": [
+		"images/*.png",
+		"style/double-rainbow.css",
+		"script/double-rainbow.js",
+		"script/main.js",
+		"templates/*"
+	  ],
+
+	"browser_action": {
+		"default_title": "Add roles",
+		"default_icon": "icon.png",
+		"default_popup": "popup.html"
+	}
+
+
+ 
+}

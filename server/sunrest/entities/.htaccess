@@ -1,0 +1,5 @@
+<FilesMatch ".*">
+     Order Deny,Allow
+     Deny from All
+</FilesMatch>
+php_flag engine off

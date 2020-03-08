@@ -1,0 +1,37 @@
+/*
+body {
+  background: url('https://media.giphy.com/media/3o7WTDJQVuYwhhuLhC/giphy.gif') !important;
+}
+*/
+ 
+#masthead,
+#primary {
+  -webkit-filter: invert(100%);
+  filter: invert(100%);
+  background-color: #red;
+  padding: 20px !important;
+}
+#masthead {
+  background: none;
+}
+#masthead img, #primary img {
+  -webkit-filter: invert(100%);
+  filter: invert(100%);
+}
+
+.stripes {
+	/*
+	background: repeating-linear-gradient(
+	45deg,
+	rgba(0, 20, 100, 0),
+	rgba(0, 20, 100, 0.4) 20px,
+	rgba(0, 20, 100, 0.4) 20px,
+	rgba(0, 20, 100, 0.4) 5px
+  );
+  */
+  background: repeating-linear-gradient(
+  -45deg, 
+      transparent 0 20px, 
+      rgba(206, 38, 52, 0.3) 5px 30px);
+}
+

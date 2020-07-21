@@ -5,7 +5,7 @@
     
     // Set the parameters to select pages from the ground truth
     // according to the paper
-    $params = array('found' => 3, 'nroles' => 2);
+    $params = null;
     $s = Factory::createServer();
     $s->setRestrict(1);
     $qp = new QueryPageAction($s);
@@ -23,11 +23,17 @@
 <body>
 
 <table>
+	<tbody>
+		<tr>
+			<th># Category</th><th>Width</th><th>url</th>
+		</tr>
+	</tbody>
 	<?php 
 	   $p = 1;
 	   foreach($pages as $page): ?>
 	<tr>
 		<td><?php echo $p++ . ' ' . $page['category']; ?></td>
+		<td><?php echo $page['width'];?></td>
 		<td><a href="<?php echo $page['url']; ?>"><?php echo $page['url']; ?></a></td>
 	</tr>
 	<?php endforeach; ?>

@@ -10,130 +10,208 @@
  $agentTypeId integer Il valore del campo type nel caso di agente
  */
 
-$pages = "SELECT 1 as user_id, false as deleted, id, category, url, json_agg(role) AS roles, nrole as nroles, found,
-            json_agg(
-            CASE 
-            	WHEN tag = 'main' AND role ilike 'main' THEN null
-            	WHEN tag = 'footer' AND role ilike 'contentInfo' THEN null
-            	WHEN tag = 'nav' AND role ilike 'navigation' THEN null
-            	ELSE
-            		tag
-            END) AS tags
-            FROM
-            (
-            	/* tag and role for main */
-				SELECT 
-            	pp.id, url, category,
-            	count(pp.id) OVER (PARTITION BY pp.id) AS found,
-            	nrole, role, tag
-            	FROM
-            	(
-            		SELECT p.id, role, tag
-            		FROM 
-            		pages p
-            		LEFT JOIN
-            		(
-            			SELECT id, role->>'role' AS role
-            			FROM
-            			pages
-						LEFT JOIN
-            			json_array_elements(roles) AS role
-						ON true
-            			WHERE
-            			role->>'role' ilike 'main'
-            		) r
-            		ON r.id = p.id
-            		LEFT JOIN
-            		(
-            			SELECT id, tag AS tag
-            			FROM
-            			pages
-						LEFT JOIN
-            			json_array_elements_text(tags) AS tag
-						ON true
-            			WHERE
-            			tag ilike 'main'
-            		) t
-            		ON t.id = p.id
-            
-            		UNION
-            
-					/* tag and role for navigation */
-            		SELECT p.id, role, tag
-            		FROM 
-            		pages p
-            		LEFT JOIN
-            		(
-            			SELECT id, role->>'role' AS role
-            			FROM
-            			pages
-						LEFT JOIN
-            			json_array_elements(roles) AS role
-						ON true
-            			WHERE
-            			role->>'role' ilike 'navigation'
-            		) r
-            		ON r.id = p.id
-            		LEFT JOIN
-            		(
-            			SELECT id, tag AS tag
-            			FROM
-            			pages
-						LEFT JOIN
-            			json_array_elements_text(tags) AS tag
-						ON true
-            			WHERE
-            			tag ilike 'nav'
-            		) t
-            		ON t.id = p.id
-            
-            		UNION
-            		
-					/* tag and role for contentInfo */
-            		SELECT p.id, role, tag
-            		FROM 
-            		pages p
-            		LEFT JOIN
-            		(
-            			SELECT id, role->>'role' AS role
-            			FROM
-            			pages
-						LEFT JOIN
-            			json_array_elements(roles) AS role
-						ON true
-            			WHERE
-            			role->>'role' ilike 'contentInfo'
-            		) r
-            		ON r.id = p.id
-            		LEFT JOIN
-            		(
-            			SELECT id, tag AS tag
-            			FROM
-            			pages
-						LEFT JOIN
-            			json_array_elements_text(tags) AS tag
-						ON true
-            			WHERE
-            			tag ilike 'footer'
-            		) t
-            		ON t.id = p.id
-            	) pp
-            	LEFT JOIN
-            	(
-            		SELECT id, url, count(role) nrole, category
-            		FROM
-            		pages
-					LEFT JOIN
-            		json_array_elements(roles) role
-					ON true
-            		GROUP BY id, url
-            	) c
-            	ON c.id = pp.id
-            	WHERE 
-            	(role is not null OR tag is not null) /* At least one landmark tags or roles */
-            ) f
-            GROUP BY f.id, category, url, nroles, found
-            ORDER by category, url";
+// Treshold to consider result valid
+$treshold = .7;
+
+$pages = "SELECT 
+1 AS user_id,
+deleted,
+id,
+r.url,
+gt.width,
+category,
+'[]' AS tags,
+json_agg(role) roles
+FROM
+(
+	SELECT
+	id,
+    deleted,
+	url,
+	category,
+	count(tr->>'role') as nr,
+	tr->>'role' as role 
+	FROM 
+	pages,
+	json_array_elements(roles) AS tr
+	WHERE 
+	(tr->>'role' ILIKE 'main' AND tr->>'tag' NOT ILIKE 'main' 
+	 OR 
+	 tr->>'role' ILIKE 'navigation' AND tr->>'tag' NOT ILIKE 'nav' 
+	 OR
+	 tr->>'role' ILIKE 'contentInfo' AND tr->>'tag' NOT ILIKE 'footer'
+	)
+	GROUP BY id, url, tr->>'role', category
+	ORDER BY url
+) r
+LEFT JOIN
+(
+    select distinct url, width from gt_blocks where width is not null
+) gt
+ON gt.url = r.url
+/* Select only pages that have the role univoque. gt_blocks fields have to be univoque */
+WHERE nr = 1 AND deleted is false
+GROUP BY id, r.url, category, gt.width, r.deleted
+ORDER BY id";
+
+$resultPre = "SELECT
+false AS deleted,
+tool,
+role,
+url,
+gb_area,
+e_area,
+intersection_area_sum,
+percentage,
+really_relevant,
+CASE WHEN really_relevant IS TRUE THEN 1 ELSE 0 END AS TP,
+CASE WHEN really_relevant IS FALSE THEN 1 ELSE 0 END AS FP,
+CASE WHEN really_relevant IS TRUE OR really_relevant IS NULL THEN 1 ELSE 0 END AS TN,
+CASE WHEN really_relevant IS FALSE OR really_relevant IS NULL THEN 1 ELSE 0 END AS FN
+FROM
+(
+select 
+tool,
+role,
+url,
+gb_area,
+e_area,
+intersection_area_sum,
+percentage,
+CASE 
+	WHEN discovered_role IS NOT NULL THEN
+		CASE WHEN percentage >= $treshold THEN
+			true
+		ELSE
+			false
+		END
+	ELSE
+		NULL
+END really_relevant
+FROM
+(";
+
+$resultsStart = "SELECT * FROM
+(
+SELECT 
+false as deleted,
+tool,
+category,
+url,
+role,
+discovered_role,
+gb_area::integer,
+e_area::integer,
+sum(intersection_area)::integer intersection_area_sum,
+CASE
+	WHEN gb_area > 0 THEN (sum(intersection_area) / gb_area)::numeric(10,3)
+ELSE
+	0
+END percentage
+FROM
+(
+	SELECT
+	tool,
+	p.category,
+	p.url,
+	lower(gb.role) AS role,
+	lower(e.role) discovered_role,
+	gb.block gb_block,
+	e.block e_block,
+	area(gb.block) gb_area,
+	area(e.block) e_area,
+	CASE WHEN
+		area(gb.block # e.block) IS NULL THEN 0
+	ELSE
+		area(gb.block # e.block)
+	END as intersection_area
+	FROM
+	(
+		SELECT
+		id,
+		url,
+		category,
+		count(tr->>'role') as nr,
+		tr->>'role' as role 
+		FROM 
+		pages,
+		json_array_elements(roles) AS tr
+		WHERE 
+		(tr->>'role' ILIKE 'main' AND tr->>'tag' NOT ILIKE 'main' 
+		 OR 
+		 tr->>'role' ILIKE 'navigation' AND tr->>'tag' NOT ILIKE 'nav' 
+		 OR
+		 tr->>'role' ILIKE 'contentInfo' AND tr->>'tag' NOT ILIKE 'footer'
+		)
+		GROUP BY id, url, tr->>'role', category
+		ORDER BY url
+	) p";
+
+$resultsJoin = "	LEFT JOIN
+gt_blocks gb
+ON p.url = gb.url AND p.role = gb.role AND nr = 1 /* In the ground truth only roles that are univocal */
+LEFT JOIN
+evaluations e
+ON e.url = p.url AND e.role ilike gb.role";
+
+$resultsReverseJoin = "	LEFT JOIN
+evaluations gb
+ON p.url = gb.url AND p.role = gb.role AND nr = 1 /* In the ground truth only roles that are univocal */
+LEFT JOIN
+gt_blocks e
+ON e.url = p.url AND e.role ilike gb.role";
+
+
+$resultsEnd = ") a
+GROUP BY tool, category, url, role, gb_area, e_area, discovered_role
+) t
+WHERE role is not null and gb_area > 0";
+
+$resultFinal = " ) view_results
+) rr
+ORDER BY url";
+
+$results = $resultsStart . $resultsJoin . $resultsEnd . ' ORDER BY url, role';
+$resultsReverse = $resultsStart . $resultsReverseJoin . $resultsEnd . ' AND discovered_role is not null ORDER BY url, role';
+
+$results1 = $resultPre . $results . $resultFinal;
+$results2 = $resultPre . $resultsReverse . $resultFinal;
+
+$perRoleStart = "SELECT 
+false AS deleted, 
+tool,
+role, true_positives, false_positives, false_negatives, true_negatives, precision, recall,
+CASE WHEN (precision + recall > 0) THEN
+	(2*precision * recall / (precision + recall))::numeric(4,3)
+ELSE null END AS f1
+FROM
+(
+select 
+tool,
+role, true_positives, false_positives, false_negatives, true_negatives,
+CASE WHEN (true_positives + false_positives > 0) THEN	
+	(true_positives / (true_positives + false_positives))::numeric(4,3) 
+ELSE null END AS precision,
+CASE WHEN (true_positives + false_negatives > 0) THEN
+	(true_positives / (true_positives + false_negatives))::numeric(4,3)
+ELSE null END AS recall
+FROM
+(
+SELECT
+tool,
+role,
+sum(TP)::numeric(7,3) true_positives,
+sum(FP)::numeric(7,3) false_positives,
+sum(FN)::numeric(7,3) false_negatives,
+sum(TN)::numeric(7,3) true_negatives
+FROM (";
+
+$perRoleEnd = ") view_test_per_url GROUP BY tool, role
+) t
+)tt";
+
+$perRole = $perRoleStart . $results1 . $perRoleEnd;
+$perRoleReverse = $perRoleStart . $results2 . $perRoleEnd;
 
 $restrictQuery = array(
     
@@ -167,7 +245,14 @@ $restrictQuery = array(
     'pages' => $pages,
     
     'evaluations' => "SELECT * from evaluations",
-    'gt_blocks' => "select * from gt_blocks"
+	'gt_blocks' => "select * from gt_blocks where deleted is false order by url, role",
+
+	'results' => $results1,
+	'results_reverse' => $results2,
+
+	'perrole' => $perRole,
+	'perrole_reverse' => $perRoleReverse
+	
     
 );
 

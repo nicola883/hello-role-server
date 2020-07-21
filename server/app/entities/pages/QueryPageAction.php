@@ -30,8 +30,8 @@ class QueryPageAction extends EntityCollectionAction
 	        $params['nroles'] = 0;
 	    }
 	    $table = $s->getTable($entity->getCollectionName());
-	    $query = "select * from $table where found >= :found and nroles >= :nroles";
-		return $s->getList($table, null, false, array('query' => $query, 'params' => $params));
+	    $query = "select * from $table";
+		return $s->getList($table, null, false, array('query' => $query, 'params' => null));
 	}
 	
 }

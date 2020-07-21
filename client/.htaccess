@@ -2,4 +2,4 @@
 
 SetEnv DEBUG_LOG 1
 SetEnv PRODUCTION 0
-SetEnv DIR_LOG /home/nicola/as/logs/
+SetEnv DIR_LOG /home/nicola/helloroles/logs/

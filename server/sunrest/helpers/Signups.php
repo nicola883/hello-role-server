@@ -174,42 +174,42 @@ class Signups {
 			$userId = $user['id'];
 			if (empty($data))
 				$data = $server->getPostData(true);
-				// se l'account c'e' l'unica cosa che devo fare e' creare la relazione con il nuovo utente
-				// accetto che un account gse possa essere usato da piu' utenti. Il concetto post del rest rimane salvo
-				// perche' sto comunque creando un nuovo account per l'utente dato.
-				// l'account c'e' se corrisponde servizio e userid
-				$query = "select id from accounts a where a.gse_id_utente = :gseidutente and a.gse_id_utente is not null and deleted = false";
-				$exists = $server->dbQuery2($query, array(':gseidutente' => $gseUser['gse_user_id']));
+			// se l'account c'e' l'unica cosa che devo fare e' creare la relazione con il nuovo utente
+			// accetto che un account gse possa essere usato da piu' utenti. Il concetto post del rest rimane salvo
+			// perche' sto comunque creando un nuovo account per l'utente dato.
+			// l'account c'e' se corrisponde servizio e userid
+			$query = "select id from accounts a where a.gse_id_utente = :gseidutente and a.gse_id_utente is not null and deleted = false";
+			$exists = $server->dbQuery2($query, array(':gseidutente' => $gseUser['gse_user_id']));
+			
+			// se la query ha dato errore ritorno
+			if ($exists === false)
+				return false;
+			// creo l'account se non esiste
+			if (is_null($exists)) {
+				$data['gse_id_utente'] = $gseUser['gse_user_id'];
+				$data['gse_user_name'] = $gseUser['gse_user_name'];
+				$accountId = $server->create('accounts', $data, true);
+			} else {
+				$accountId = $exists[0]['id'];
+				// Aggiorno campi che potrebbero essere cambiati
+				$server->update('accounts', array('gse_user_name' => $gseUser['gse_user_name'], 'password' => $data['password']), $accountId, true);
+			}
+			
+			// setto la relazione: setto cosi un nuovo account dell'utente. Se esiste non lo faccio
+			$query = "SELECT user_id FROM users_accounts WHERE user_id = :userid AND account_id = :accountid";
+			$exists = $server->dbQuery2($query, array(':userid' => $userId, ':accountid' => $accountId));
+			
+			if ($exists === false)
+				return false;
+			if (is_null($exists)) {
+				$server->create('users_accounts', array('user_id' => $userId, 'account_id' => $accountId), true);
+				$server->setHeader(CREATED);
+			} else
+				$server->setHeader(OK);
 				
-				// se la query ha dato errore ritorno
-				if ($exists === false)
-					return false;
-					// creo l'account se non esiste
-					if (is_null($exists)) {
-						$data['gse_id_utente'] = $gseUser['gse_user_id'];
-						$data['gse_user_name'] = $gseUser['gse_user_name'];
-						$accountId = $server->create('accounts', $data, true);
-					} else {
-						$accountId = $exists[0]['id'];
-						// Aggiorno campi che potrebbero essere cambiati
-						$server->update('accounts', array('gse_user_name' => $gseUser['gse_user_name'], 'password' => $data['password']), $accountId, true);
-					}
-					
-					// setto la relazione: setto cosi un nuovo account dell'utente. Se esiste non lo faccio
-					$query = "SELECT user_id FROM users_accounts WHERE user_id = :userid AND account_id = :accountid";
-					$exists = $server->dbQuery2($query, array(':userid' => $userId, ':accountid' => $accountId));
-					
-					if ($exists === false)
-						return false;
-					if (is_null($exists)) {
-						$server->create('users_accounts', array('user_id' => $userId, 'account_id' => $accountId), true);
-						$server->setHeader(CREATED);
-					} else
-						$server->setHeader(OK);
-						
-						
-					// ritorno l'id dell'accounts
-					return $accountId;
+				
+			// ritorno l'id dell'accounts
+			return $accountId;
 	}
 	
 	

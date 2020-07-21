@@ -431,7 +431,6 @@ function colorNode(role, node) {
  * @param {*} param 
  */
 function drawGroundTruth(url, callback, param) {
-	console.log('qui');
 	var send = {};
 	send.url = url;
 	if (readCategory != undefined)
@@ -443,8 +442,6 @@ function drawGroundTruth(url, callback, param) {
 				method: 'GET',
 				url: gtUrl
 			}, function(page) {
-				console.log('quiiii');
-				console.log(page);
 				for (let i=0; i<page[0].roles.length; i++) {
 					if (page[0].roles[i] == undefined)
 						continue;

@@ -4,20 +4,6 @@ body {
 }
 */
  
-#masthead,
-#primary {
-  -webkit-filter: invert(100%);
-  filter: invert(100%);
-  background-color: #red;
-  padding: 20px !important;
-}
-#masthead {
-  background: none;
-}
-#masthead img, #primary img {
-  -webkit-filter: invert(100%);
-  filter: invert(100%);
-}
 
 .stripes {
 	/*

@@ -42,6 +42,7 @@ function sendRolesAndTags() {
 
 
 function sendPage(url, roles, tags) {
+	console.log(roles);
 	var send = {};
 	send.url = url;
 	if (roles != undefined)
